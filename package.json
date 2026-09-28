@@ -1,6 +1,6 @@
 {
   "name": "com.glglekdy.ui-sprite-maker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "UI Sprite Maker",
   "description": "Editor tool for baking UI sprites (rounded corners, gradients, drop shadows, glows, strokes) into 9-sliced PNG sprites for UGUI.",
   "unity": "6000.0",

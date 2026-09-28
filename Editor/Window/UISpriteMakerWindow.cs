@@ -111,6 +111,12 @@ namespace UISpriteMaker.Editor
             presetRow.Add(new Button(SavePreset) { text = "Save As…" });
             left.Add(presetRow);
 
+            var specRow = new VisualElement { style = { flexDirection = FlexDirection.Row, paddingLeft = 4, paddingRight = 4, paddingBottom = 4 } };
+            specRow.Add(new Label("Spec JSON") { style = { flexGrow = 1, unityTextAlign = TextAnchor.MiddleLeft } });
+            specRow.Add(new Button(CopySpec) { text = "Copy", tooltip = "Copy the style as a JSON sprite spec (for scripts / AI agents)." });
+            specRow.Add(new Button(PasteSpec) { text = "Paste", tooltip = "Load a JSON sprite spec from the clipboard." });
+            left.Add(specRow);
+
             _inspectorHost = new ScrollView(ScrollViewMode.Vertical) { style = { flexGrow = 1 } };
             left.Add(_inspectorHost);
             RebuildInspector();
@@ -282,6 +288,32 @@ namespace UISpriteMaker.Editor
             ScheduleRender();
         }
 
+        void CopySpec()
+        {
+            EditorGUIUtility.systemCopyBuffer = SpriteSpec.ToJson(_style);
+            ShowNotification(new GUIContent("Spec JSON copied"));
+        }
+
+        void PasteSpec()
+        {
+            UISpriteStyle parsed;
+            try
+            {
+                parsed = SpriteSpec.Parse(EditorGUIUtility.systemCopyBuffer);
+            }
+            catch (SpriteSpecException e)
+            {
+                EditorUtility.DisplayDialog("Invalid sprite spec", e.Message, "OK");
+                return;
+            }
+
+            Undo.RecordObject(_style, "Paste UI Sprite Spec");
+            _style.CopyFrom(parsed);
+            DestroyImmediate(parsed);
+            RebuildInspector();
+            ScheduleRender();
+        }
+
         void SavePreset()
         {
             var path = EditorUtility.SaveFilePanelInProject("Save UI Sprite Preset", "UISpriteStyle", "asset", "Save the current style as a preset.");
@@ -328,25 +360,9 @@ namespace UISpriteMaker.Editor
             if (string.IsNullOrEmpty(_assetPath)) return;
 
             var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(_assetPath);
-            float s = _result.Scale;
-            var padding = _result.Padding / s;
-            bool sliced = _result.Border != Vector4.zero;
-
+            var layout = SpriteRasterizer.ComputeLayout(_style);
             foreach (var img in images)
-            {
-                var rt = img.rectTransform;
-                Undo.RecordObjects(new Object[] { img, rt }, "Apply UI Sprite");
-                img.sprite = sprite;
-                img.type = sliced ? UIImage.Type.Sliced : UIImage.Type.Simple;
-                img.pixelsPerUnitMultiplier = 1f;
-                // The sprite includes transparent padding for shadows/glows: size the rect so the
-                // shape keeps its designed size and keep clicks on the shape only.
-                img.raycastPadding = padding;
-                rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _result.Width / s);
-                rt.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _result.Height / s);
-                PrefabUtility.RecordPrefabInstancePropertyModifications(img);
-                PrefabUtility.RecordPrefabInstancePropertyModifications(rt);
-            }
+                UISpriteMakerApi.ApplyToImage(img, sprite, layout);
         }
 
         static Texture2D CreateCheckerTexture()

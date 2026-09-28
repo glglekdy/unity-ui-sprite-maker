@@ -49,6 +49,32 @@ Project 창에서 PNG를 우클릭 → **UI Sprite Maker › Edit in Sprite Make
 창 상단의 **Save As…** 로 현재 스타일을 `UISpriteStyle` 에셋으로 저장하고, **Load** 로 불러옵니다.
 *Create › UI Sprite Maker › UI Sprite Style* 로 직접 만들 수도 있습니다.
 
+## AI / 스크립트에서 사용하기
+
+JSON 스펙 하나로 스프라이트를 정의하면 코드나 명령줄로 바로 구울 수 있습니다. 다른 AI 에이전트(Claude Code, Codex, Cursor 등)도 이 방식으로 쓸 수 있습니다.
+전체 스펙과 사용법은 [AGENTS.md](AGENTS.md)에 있습니다.
+
+```json
+{ "output": "Assets/UI/Sprites/PrimaryButton.png",
+  "size": [240, 72], "radius": 36, "scale": 2,
+  "fill": { "type": "linear", "direction": "to top", "colors": ["#2F6BFF", "#6FA8FF"] },
+  "shadows": [ { "color": "#1B3A8A66", "offset": [0, 6], "blur": 14 } ] }
+```
+
+- **C# API**: `UISpriteMakerApi.Bake(specJson, "Assets/UI/X.png")`, `RenderPng`, `Validate`, `GetSpec`, `ApplyToImage`
+- **배치모드 CLI** (에디터가 닫혀 있을 때):
+  `Unity -batchmode -nographics -projectPath <프로젝트> -executeMethod UISpriteMaker.Editor.UISpriteMakerCli.Bake -spec sprites.json -preview <폴더>`
+- **창의 Spec JSON › Copy / Paste**: 창에서 만든 스타일을 JSON으로 복사하거나, AI가 만든 JSON을 붙여넣어 불러옵니다.
+
+이 패키지를 설치한 프로젝트에서 AI가 가이드를 찾도록 하려면, 그 프로젝트의 `CLAUDE.md`나 `AGENTS.md`에 다음을 추가하세요.
+
+```md
+## UI sprites
+Make UI background sprites (rounded corners, gradients, shadows, glows) with the UI Sprite Maker package
+(com.glglekdy.ui-sprite-maker) instead of drawing textures. Read its guide first:
+Library/PackageCache/com.glglekdy.ui-sprite-maker*/AGENTS.md
+```
+
 ## 참고
 
 - 스프라이트에는 그림자/글로우를 위한 투명 여백이 포함됩니다. *Apply* 기능은 도형이 디자인한 크기로 보이도록

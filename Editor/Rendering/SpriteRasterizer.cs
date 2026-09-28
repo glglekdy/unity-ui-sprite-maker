@@ -30,6 +30,23 @@ namespace UISpriteMaker.Editor
         }
     }
 
+    public sealed class SpriteLayout
+    {
+        public int Width;
+        public int Height;
+        public int Scale;
+        /// <summary>Shape bounds inside the canvas, in pixels.</summary>
+        public RectInt ShapeRect;
+        /// <summary>Space around the shape reserved for effects, in pixels (left, bottom, right, top).</summary>
+        public Vector4 Padding;
+        /// <summary>9-slice sprite border in pixels (left, bottom, right, top). Zero when slicing is off.</summary>
+        public Vector4 Border;
+        /// <summary>Clamped corner radii in pixels (topLeft, topRight, bottomRight, bottomLeft).</summary>
+        public Vector4 Radii;
+        public float StrokeWidth;
+        public float StrokeOuter;
+    }
+
     public static class SpriteRasterizer
     {
         public const int MaxSize = 2048;
@@ -38,15 +55,15 @@ namespace UISpriteMaker.Editor
         const float BlurToSigma = 0.5f;
         const float BlurExtent = 1.5f;
 
-        public static RasterResult Render(UISpriteStyle style)
+        /// <summary>Computes canvas size, padding and 9-slice border without rendering pixels.</summary>
+        public static SpriteLayout ComputeLayout(UISpriteStyle style)
         {
             var shape = style.shape;
             int s = Mathf.Clamp(shape.scale, 1, 4);
             int w = Mathf.Clamp(shape.size.x, 1, MaxSize) * s;
             int h = Mathf.Clamp(shape.size.y, 1, MaxSize) * s;
-            float hw = w * 0.5f, hh = h * 0.5f;
 
-            float maxRadius = Mathf.Min(hw, hh);
+            float maxRadius = Mathf.Min(w, h) * 0.5f;
             Vector4 radii = shape.GetRadii() * s;
             for (int i = 0; i < 4; i++)
                 radii[i] = Mathf.Clamp(radii[i], 0f, maxRadius);
@@ -89,8 +106,35 @@ namespace UISpriteMaker.Editor
 
             int W = w + padL + padR;
             int H = h + padB + padT;
+
+            return new SpriteLayout
+            {
+                Width = W,
+                Height = H,
+                Scale = s,
+                ShapeRect = new RectInt(padL, padB, w, h),
+                Padding = new Vector4(padL, padB, padR, padT),
+                Border = style.nineSlice
+                    ? ComputeBorder(style, radii, strokeW - strokeOuter, s, W, H, padL, padB, padR, padT)
+                    : Vector4.zero,
+                Radii = radii,
+                StrokeWidth = strokeW,
+                StrokeOuter = strokeOuter,
+            };
+        }
+
+        public static RasterResult Render(UISpriteStyle style)
+        {
+            var layout = ComputeLayout(style);
+            int s = layout.Scale;
+            int W = layout.Width, H = layout.Height;
             int n = W * H;
-            float cx = padL + hw, cy = padB + hh;
+            float hw = layout.ShapeRect.width * 0.5f, hh = layout.ShapeRect.height * 0.5f;
+            float cx = layout.ShapeRect.x + hw, cy = layout.ShapeRect.y + hh;
+            Vector4 radii = layout.Radii;
+            var stroke = style.stroke;
+            var glow = style.outerGlow;
+            float strokeW = layout.StrokeWidth, strokeOuter = layout.StrokeOuter;
 
             // --- Base signed distance field ---
             var sdf = new float[n];
@@ -186,11 +230,9 @@ namespace UISpriteMaker.Editor
                 Height = H,
                 Pixels = pixels,
                 Scale = s,
-                ShapeRect = new RectInt(padL, padB, w, h),
-                Padding = new Vector4(padL, padB, padR, padT),
-                Border = style.nineSlice
-                    ? ComputeBorder(style, radii, strokeW - strokeOuter, s, W, H, padL, padB, padR, padT)
-                    : Vector4.zero,
+                ShapeRect = layout.ShapeRect,
+                Padding = layout.Padding,
+                Border = layout.Border,
             };
         }
 
