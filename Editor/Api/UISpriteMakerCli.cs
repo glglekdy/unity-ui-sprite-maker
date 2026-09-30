@@ -15,8 +15,9 @@ namespace UISpriteMaker.Editor
     ///       -spec sprites.json [-preview &lt;dir&gt;] [-validateOnly]
     /// </code>
     /// The spec file holds one spec, an array of specs, or { "sprites": [ ... ] }.
-    /// Every spec needs an "output" asset path (unless -validateOnly or only previewing).
-    /// Output lines are prefixed with "[UISpriteMaker]". Exit code 0 = success, 1 = error.
+    /// Every spec needs an "output" PNG path and/or a "prefab" path (unless -validateOnly or only previewing).
+    /// Output lines are prefixed with "[UISpriteMaker]": OK, PREFAB, PREVIEW, VALID, WARN, ERROR.
+    /// Exit code 0 = success, 1 = error.
     /// </summary>
     public static class UISpriteMakerCli
     {
@@ -67,7 +68,7 @@ namespace UISpriteMaker.Editor
             var items = ReadSpecs(File.ReadAllText(specPath, Encoding.UTF8));
             bool ok = true;
 
-            var baked = new List<(string path, UISpriteStyle style)>();
+            var baked = new List<(string output, string prefab, UISpriteStyle style)>();
             for (int i = 0; i < items.Count; i++)
             {
                 string itemPath = $"sprites[{i}]";
@@ -76,25 +77,26 @@ namespace UISpriteMaker.Editor
                 {
                     var obj = SpriteSpec.AsObject(items[i], itemPath, SpriteSpec.RootKeys);
                     string output = obj.TryGetValue("output", out var outValue) ? outValue as string : null;
-                    if (output == null && !validateOnly && previewDir == null)
-                        throw new SpriteSpecException($"{itemPath}.output: required, e.g. \"output\": \"Assets/UI/Button.png\"");
+                    string prefab = obj.TryGetValue("prefab", out var prefabValue) ? prefabValue as string : null;
+                    if (output == null && prefab == null && !validateOnly && previewDir == null)
+                        throw new SpriteSpecException($"{itemPath}.output: required (or \"prefab\"), e.g. \"output\": \"Assets/UI/Button.png\"");
 
                     style = SpriteSpec.FromObject(obj, itemPath);
                     if (validateOnly)
                     {
-                        Log($"VALID {output ?? itemPath}");
+                        Log($"VALID {output ?? prefab ?? itemPath}");
                         continue;
                     }
 
                     if (previewDir != null)
                     {
-                        string name = output != null ? Path.GetFileNameWithoutExtension(output) : $"sprite_{i}";
-                        WritePreview(style, Path.Combine(previewDir, name + ".png"));
+                        string name = Path.GetFileNameWithoutExtension(output ?? prefab ?? $"sprite_{i}");
+                        WritePreview(style, Path.Combine(previewDir, name + ".png"), itemPath);
                     }
 
-                    if (output != null)
+                    if (output != null || prefab != null)
                     {
-                        baked.Add((output, style));
+                        baked.Add((output, prefab, style));
                         style = null; // ownership moves to the bake list
                     }
                 }
@@ -109,17 +111,31 @@ namespace UISpriteMaker.Editor
                 }
             }
 
-            foreach (var (path, style) in baked)
+            foreach (var (output, prefab, style) in baked)
             {
                 try
                 {
-                    var layout = UISpriteMakerApi.Bake(style, path);
-                    var b = layout.Border;
-                    Log($"OK {path} {layout.Width}x{layout.Height}px @{layout.Scale}x border(L{b.x} B{b.y} R{b.z} T{b.w})");
+                    if (output != null)
+                    {
+                        var layout = UISpriteMakerApi.Bake(style, output, out var raster);
+                        var b = layout.Border;
+                        Log($"OK {output} {layout.Width}x{layout.Height}px @{layout.Scale}x border(L{b.x} B{b.y} R{b.z} T{b.w})");
+                        LogWarnings(output, raster.Warnings);
+                        if (style.nineSlice && (layout.SliceBlockedX || layout.SliceBlockedY))
+                            LogWarning($"WARN {output}: layers cover the whole 9-slice stretch area " +
+                                       $"({(layout.SliceBlockedX ? "horizontally" : "")}{(layout.SliceBlockedX && layout.SliceBlockedY ? " and " : "")}{(layout.SliceBlockedY ? "vertically" : "")}); " +
+                                       "use it at its designed size, or set \"nineSlice\": false");
+                    }
+                    if (prefab != null)
+                    {
+                        var result = UISpriteMakerApi.BakePrefab(style, prefab);
+                        Log($"PREFAB {result.PrefabPath} objects={result.Objects} sprites={result.Sprites.Count}");
+                        LogWarnings(result.PrefabPath, result.Warnings);
+                    }
                 }
                 catch (Exception e)
                 {
-                    LogError($"ERROR {path}: {e.Message}");
+                    LogError($"ERROR {output ?? prefab}: {e.Message}");
                     ok = false;
                 }
                 finally
@@ -128,6 +144,11 @@ namespace UISpriteMaker.Editor
                 }
             }
             return ok;
+        }
+
+        static void LogWarnings(string asset, List<string> warnings)
+        {
+            foreach (var w in warnings) LogWarning($"WARN {asset}: {w}");
         }
 
         static List<object> ReadSpecs(string json)
@@ -151,7 +172,7 @@ namespace UISpriteMaker.Editor
             };
         }
 
-        static void WritePreview(UISpriteStyle style, string filePath)
+        static void WritePreview(UISpriteStyle style, string filePath, string itemPath)
         {
             var result = SpriteRasterizer.Render(style);
             var tex = result.ToTexture();
@@ -160,6 +181,7 @@ namespace UISpriteMaker.Editor
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(filePath)));
                 File.WriteAllBytes(filePath, tex.EncodeToPNG());
                 Log($"PREVIEW {filePath}");
+                LogWarnings(itemPath, result.Warnings);
             }
             finally
             {
@@ -170,6 +192,9 @@ namespace UISpriteMaker.Editor
         // No stack traces: keeps batch-mode logs easy to grep for "[UISpriteMaker]".
         static void Log(string message) =>
             Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0} {1}", LogPrefix, message);
+
+        static void LogWarning(string message) =>
+            Debug.LogFormat(LogType.Warning, LogOption.NoStacktrace, null, "{0} {1}", LogPrefix, message);
 
         static void LogError(string message) =>
             Debug.LogFormat(LogType.Error, LogOption.NoStacktrace, null, "{0} {1}", LogPrefix, message);

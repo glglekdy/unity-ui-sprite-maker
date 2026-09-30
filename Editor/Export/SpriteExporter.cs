@@ -6,8 +6,8 @@ namespace UISpriteMaker.Editor
 {
     public static class SpriteExporter
     {
-        // Prefix for the style JSON stored in TextureImporter.userData, so the sprite can be re-edited.
-        const string UserDataPrefix = "UISpriteMaker:";
+        // Prefix for the style JSON stored in the importer's userData (PNG or prefab), so the asset can be re-edited.
+        internal const string UserDataPrefix = "UISpriteMaker:";
 
         /// <summary>Renders <paramref name="style"/> to a PNG at <paramref name="assetPath"/> and imports it as a sprite.</summary>
         public static RasterResult Export(UISpriteStyle style, string assetPath)
@@ -47,15 +47,17 @@ namespace UISpriteMaker.Editor
             return result;
         }
 
+        /// <summary>True for sprites and prefabs made by UI Sprite Maker.</summary>
         public static bool HasStyle(string assetPath) =>
-            AssetImporter.GetAtPath(assetPath) is TextureImporter importer &&
+            !string.IsNullOrEmpty(assetPath) &&
+            AssetImporter.GetAtPath(assetPath) is AssetImporter importer &&
             importer.userData != null && importer.userData.StartsWith(UserDataPrefix);
 
-        /// <summary>Loads the style that was used to bake the sprite at <paramref name="assetPath"/> into <paramref name="target"/>.</summary>
+        /// <summary>Loads the style that was used to bake the sprite or prefab at <paramref name="assetPath"/> into <paramref name="target"/>.</summary>
         public static bool TryLoadStyle(string assetPath, UISpriteStyle target)
         {
             if (!HasStyle(assetPath)) return false;
-            var importer = (TextureImporter)AssetImporter.GetAtPath(assetPath);
+            var importer = AssetImporter.GetAtPath(assetPath);
             target.LoadJson(importer.userData.Substring(UserDataPrefix.Length));
             return true;
         }

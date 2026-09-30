@@ -1,10 +1,13 @@
 {
   "name": "com.glglekdy.ui-sprite-maker",
-  "version": "0.2.0",
+  "version": "1.1.0",
   "displayName": "UI Sprite Maker",
-  "description": "Editor tool for baking UI sprites (rounded corners, gradients, drop shadows, glows, strokes) into 9-sliced PNG sprites for UGUI.",
+  "description": "Figma-like editor tool for UGUI backgrounds: layered shapes, images and text with rounded corners, gradients, shadows, glows, strokes, blend modes and masks, baked into 9-sliced PNG sprites or UGUI prefabs.",
   "unity": "6000.0",
-  "keywords": ["ui", "ugui", "sprite", "rounded", "shadow", "glow", "gradient", "9-slice"],
+  "keywords": ["ui", "ugui", "sprite", "rounded", "shadow", "glow", "gradient", "9-slice", "layers", "text", "prefab"],
+  "dependencies": {
+    "com.unity.ugui": "2.0.0"
+  },
   "author": {
     "name": "glglekdy",
     "url": "https://github.com/glglekdy"

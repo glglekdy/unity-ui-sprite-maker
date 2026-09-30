@@ -4,6 +4,7 @@
     "references": [
         "UISpriteMaker.Editor",
         "UnityEngine.UI",
+        "Unity.TextMeshPro",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

@@ -29,12 +29,41 @@ namespace UISpriteMaker.Editor
             }
         }
 
-        public static SpriteLayout Bake(UISpriteStyle style, string assetPath)
+        public static SpriteLayout Bake(UISpriteStyle style, string assetPath) => Bake(style, assetPath, out _);
+
+        /// <param name="raster">The rendered pixels, including warnings about layers that couldn't be drawn.</param>
+        internal static SpriteLayout Bake(UISpriteStyle style, string assetPath, out RasterResult raster)
         {
-            assetPath = NormalizeAssetPath(assetPath);
+            assetPath = NormalizeAssetPath(assetPath, ".png");
             EnsureFolder(Path.GetDirectoryName(assetPath)?.Replace('\\', '/'));
-            SpriteExporter.Export(style, assetPath);
+            raster = SpriteExporter.Export(style, assetPath);
             return SpriteRasterizer.ComputeLayout(style);
+        }
+
+        /// <summary>
+        /// Builds a UGUI prefab from a layered spec: the frame (and layers that bake) become 9-sliced sprite Images,
+        /// text layers become TextMeshPro objects and image layers become Images, anchored by their constraints.
+        /// Sprites are written next to the prefab in "&lt;Name&gt;_Sprites/". Existing files are overwritten.
+        /// </summary>
+        /// <param name="prefabPath">Project-relative path, e.g. "Assets/UI/Prefabs/RewardCard.prefab".</param>
+        public static PrefabBakeResult BakePrefab(string specJson, string prefabPath)
+        {
+            var style = SpriteSpec.Parse(specJson);
+            try
+            {
+                return BakePrefab(style, prefabPath);
+            }
+            finally
+            {
+                Object.DestroyImmediate(style);
+            }
+        }
+
+        public static PrefabBakeResult BakePrefab(UISpriteStyle style, string prefabPath)
+        {
+            prefabPath = NormalizeAssetPath(prefabPath, ".prefab");
+            EnsureFolder(Path.GetDirectoryName(prefabPath)?.Replace('\\', '/'));
+            return PrefabExporter.Export(style, prefabPath);
         }
 
         /// <summary>
@@ -80,7 +109,7 @@ namespace UISpriteMaker.Editor
             }
         }
 
-        /// <summary>Returns the spec JSON a sprite was baked with, or null if it was not made by this tool.</summary>
+        /// <summary>Returns the spec JSON a sprite or prefab was baked with, or null if it was not made by this tool.</summary>
         public static string GetSpec(string assetPath)
         {
             var style = ScriptableObject.CreateInstance<UISpriteStyle>();
@@ -135,19 +164,19 @@ namespace UISpriteMaker.Editor
             PrefabUtility.RecordPrefabInstancePropertyModifications(rt);
         }
 
-        static string NormalizeAssetPath(string assetPath)
+        static string NormalizeAssetPath(string assetPath, string extension)
         {
             if (string.IsNullOrWhiteSpace(assetPath))
                 throw new System.ArgumentException("Asset path is empty", nameof(assetPath));
             assetPath = assetPath.Replace('\\', '/');
             if (!assetPath.StartsWith("Assets/"))
                 throw new System.ArgumentException($"Asset path must start with \"Assets/\": \"{assetPath}\"", nameof(assetPath));
-            if (!assetPath.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
-                assetPath += ".png";
+            if (!assetPath.EndsWith(extension, System.StringComparison.OrdinalIgnoreCase))
+                assetPath += extension;
             return assetPath;
         }
 
-        static void EnsureFolder(string folder)
+        internal static void EnsureFolder(string folder)
         {
             if (string.IsNullOrEmpty(folder) || AssetDatabase.IsValidFolder(folder)) return;
             int slash = folder.LastIndexOf('/');

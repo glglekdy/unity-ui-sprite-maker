@@ -110,6 +110,12 @@ namespace UISpriteMaker.Editor
         [Tooltip("Set sprite borders so the sprite can be used with Image Type = Sliced.")]
         public bool nineSlice = true;
 
+        [Tooltip("Clip layers to the frame's shape.")]
+        public bool clip;
+
+        /// <summary>Layers drawn on top of the frame's fill, bottom to top.</summary>
+        [SerializeReference] public List<Layer> layers = new List<Layer>();
+
         public string ToJson() => EditorJsonUtility.ToJson(this);
 
         /// <summary>Overwrites this style from JSON while keeping its name and hide flags.</summary>
@@ -117,7 +123,12 @@ namespace UISpriteMaker.Editor
         {
             var flags = hideFlags;
             var objName = name;
+            // Styles saved before layers existed don't mention these fields: don't keep stale values.
+            layers = new List<Layer>();
+            clip = false;
             EditorJsonUtility.FromJsonOverwrite(json, this);
+            layers ??= new List<Layer>();
+            layers.RemoveAll(l => l == null);
             hideFlags = flags;
             name = objName;
         }
